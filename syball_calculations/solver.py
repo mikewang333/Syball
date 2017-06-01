@@ -10,39 +10,39 @@ SPOTS_ALL_TEAMS = PLAYERS_PER_TEAM * NUM_TEAMS #total number of players that nee
 
 
 #changing
-global total_money_remaining #= NUM_TEAMS * MONEY_PER_TEAM 
-global my_spots_remaining = 9  
-global my_money_remaining= 200  
-global player_dict = {}   #remaining players
+global total_money_remaining
+global my_spots_remaining 
+global my_money_remaining
+global player_dict
 
-global my_threes = 0
-global my_reb = 0
-global my_ast = 0
-global my_stl = 0
-global my_blk = 0
-global my_to = 0
-global my_pts = 0
+global my_threes
+global my_reb
+global my_ast
+global my_stl
+global my_blk
+global my_to
+global my_pts
 
-global total_threes = 0
-global total_reb = 0
-global total_ast = 0
-global total_stl = 0
-global total_blk = 0
-global total_to = 0
-global total_pts = 0
+global total_threes
+global total_reb
+global total_ast
+global total_stl
+global total_blk
+global total_to
+global total_pts
 
-global avg_threes = 0
-global avg_reb = 0
-global avg_ast = 0
-global avg_stl = 0
-global avg_blk = 0
-global avg_to = 0
-global avg_pts = 0
+global avg_threes
+global avg_reb
+global avg_ast
+global avg_stl
+global avg_blk
+global avg_to
+global avg_pts
 
 
 
-#gives total counts for all stats 
-def recompute_totals(): #recompute totals with remaining players left
+#gives total counts for all stats in player_dict
+def recompute_totals():
   global total_threes
   global total_reb
   global total_ast
@@ -67,18 +67,28 @@ def recompute_totals(): #recompute totals with remaining players left
     total_to += player.TO
     total_pts += player.PTS
 
+#compute team averages
+def compute_team_averages():
+  global avg_threes
+  global avg_reb 
+  global avg_ast
+  global avg_stl
+  global avg_blk
+  global avg_to 
+  global avg_pts
 
-
-
-
+  avg_threes = total_threes/NUM_TEAMS
+  avg_reb = total_reb/NUM_TEAMS
+  avg_ast = total_ast/NUM_TEAMS
+  avg_stl = total_stl/NUM_TEAMS
+  avg_blk = total_blk/NUM_TEAMS
+  avg_to = total_to/NUM_TEAMS
+  avg_pts = total_pts/NUM_TEAMS
 
 def update_costs():
   global player_dict
   for player in player_dict.values():
     player.update_cost(total_threes, total_reb, total_ast, total_stl, total_blk, total_pts, total_money_remaining)
-
-
-
 
 
 def solve():
@@ -115,8 +125,15 @@ def choose_player(mine, name, cost):
 
 #reads input and creates all_players
 def read_input(filename):
+  global my_spots_remaining
+  global my_money_remaining
+  global total_money_remaining
   global player_dict
 
+  my_spots_remaining = PLAYERS_PER_TEAM
+  my_money_remaining = MONEY_PER_TEAM
+  total_money_remaining = NUM_TEAMS * MONEY_PER_TEAM 
+  player_dict = {}
   with open(filename) as f:
     for i in range(SPOTS_ALL_TEAMS):
       stats = ast.literal_eval(f.readline())
@@ -124,25 +141,6 @@ def read_input(filename):
       new_player = Player(float(stats[1]), float(stats[2]), float(stats[3]), float(stats[4]), float(stats[5]), 
         float(stats[6]), float(stats[7]), float(stats[8]), float(stats[9]), float(stats[10]))
       player_dict[name] = new_player
-
-#compute team averages
-def compute_team_averages():
-  global avg_threes
-  global avg_reb 
-  global avg_ast
-  global avg_stl
-  global avg_blk
-  global avg_to 
-  global avg_pts
-
-  avg_threes = total_threes/NUM_TEAMS
-  avg_reb = total_reb/NUM_TEAMS
-  avg_ast = total_ast/NUM_TEAMS
-  avg_stl = total_stl/NUM_TEAMS
-  avg_blk = total_blk/NUM_TEAMS
-  avg_to = total_to/NUM_TEAMS
-  avg_pts = total_pts/NUM_TEAMS
-
   
 
 
@@ -160,6 +158,7 @@ if __name__ == "__main__":
   #update_costs() #first round of costs
   #print(total_money_remaining)
   #print(total_threes)
+  print(player_dict)
   print(player_dict['Goran Dragic'].cost)
   #print(player_dict)
   #solve()
