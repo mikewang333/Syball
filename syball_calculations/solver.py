@@ -1,8 +1,8 @@
 import argparse
 import ast
 from player_wrapper import Player
-from __future__ import division
 from pulp import * 
+
 #from integer_program import LPSolver 
 
 #fixed
@@ -205,9 +205,12 @@ def ILPsolve(num_categories_win):
   #https://www.coin-or.org/PuLP/pulp.html
   model = pulp.LpProblem("PickTeam maximizing problem", pulp.LpMaximize)
 
+  #variables to help code
   category_list = ["Threes", "REB", "AST", "STL", "BLK", "PTS"]
   var_list1 = [my_threes, my_reb, my_ast, my_stl, my_blk, my_pts]
   var_list2 = [avg_threes, avg_reb, avg_ast, avg_stl, avg_blk, avg_pts]
+  fga_fake = my_fga
+  fta_fake = my_fta
 
   #Variables
   player_status = pulp.LpVariable.dicts("player_status", (name for name in player_dict.keys()), cat='Binary')    #0 if player is taken, 1 if player is not taken
@@ -215,63 +218,57 @@ def ILPsolve(num_categories_win):
   category_val = pulp.LpVariable.dicts("category_val", (i for i in range(NUM_CATEGORIES)), cat = 'Continuous') #value of category
   
   #Objective
-  model += pulp.lpSum([category_status[i] * category_val[i]])   #maximize team
+  model += pulp.lpSum([category_val[i] for i in range(NUM_CATEGORIES)])   #maximize team
 
-
-  #Constraints PT.2
-
+  #Constraints
   #keep track of category_val for threes, reb, ast, stl, blk, pts
   for i in range(len(category_list)):
-    category_val[i] = (pulp.lpSum(player_status[name] * getattr(player_dict[name], category_list[i]) for name in player_dict.keys()) + var_list1[i]) / var_list2[i]
-    if category_val[i] >= 1.1:
-      category_val[i] = 1.1 #make sure that for chosne categories, team is capped at 10% better than avg (any better and it doesn't matter)
+    model += category_val[i] == (pulp.lpSum(player_status[name] * getattr(player_dict[name], category_list[i]) for name in player_dict.keys()) + var_list1[i]) / var_list2[i]
 
   #keep track of category_val for fg%
-  category_val[6] = (pulp.lpSum((player_status[name] * player_dict[name].FGM / player_dict[name].FGA) for name in player_dict.keys()) + (my_fgm / my_fga)) / avg_fg
-    if category_val[6] >= 1.1:
-      category_val[6] = 1.1
+  if not fga_fake:  #avoid divide by zero error
+    fga_fake = 0.01
+  model += category_val[6] == (pulp.lpSum([player_status[name] * player_dict[name].FGM / player_dict[name].FGA for name in player_dict.keys()]) + (my_fgm / fga_fake)) / avg_fg
 
   #keep track of category_val for ft%
-  category_val[7] = (pulp.lpSum((player_status[name] * player_dict[name].FTM / player_dict[name].FTA) for name in player_dict.keys()) + (my_ftm / my_fta)) / avg_ft
-    if category_val[7] >= 1.1:
-      category_val[7] = 1.1
+  if not fta_fake:  #avoid divide by zero error
+    fta_fake = 0.01
+  model += category_val[7] == ((pulp.lpSum([player_status[name] * player_dict[name].FTM for name in player_dict.keys()]) / pulp.lpSum([player_status[name] * player_dict[name].FTA for name in player_dict.keys()])) + (my_ftm / fta_fake)) / avg_ft
 
   #keep track of category_val for to
-  category_val[8] = 2 - ((pulp.lpSum(player_status[name] * player_dict[name].TO for name in player_dict.keys()) + my_to) / avg_to)
-    if category_val[8] >= 1.1:
-      category_val[8] = 1.1
+  model += category_val[8] == 2 - ((pulp.lpSum([player_status[name] * player_dict[name].TO for name in player_dict.keys()]) + my_to) / avg_to)
 
-  #make sure that for chosen cateogires team is at least 5% better than avg
+  #make sure that for chosen categories team is at least 5% better than avg
   for i in range(NUM_CATEGORIES):
-    model += category_val[i] >= 1.05 * category_status[i]  #make sure that for chosen categories, team is at least 5% better than avg
-  
+    model += category_val[i] >= 1.3 * category_status[i]  #make sure that for chosen categories, team is at least 5% better than avg
+    """if category_val[i] >= 1.1: make sure that for chosne categories, team is capped at 10 better than avg (any better and it doesn't matter)
+       category_val[i] = 1.1""" 
   #make sure don't overspend on players
-  model += pulp.lpSum(player_status[name] * player_dict[name].cost for name in player_dict.keys()) <= my_money_remaining
-
+  model += pulp.lpSum([player_status[name] * player_dict[name].cost for name in player_dict.keys()]) <= my_money_remaining
   #make sure fill up all spots left on team
-  model += pulp.lpSum(player_status[name] for name in player_dict.keys()) == my_spots_remaining
-
+  model += pulp.lpSum([player_status[name] for name in player_dict.keys()]) == my_spots_remaining
   #only try to win as many categories as set to
-  model += pulp.lpSum(category_status[i] for i in range(NUM_CATEGORIES)) == num_categories_win
+  model += pulp.lpSum([category_status[i] for i in range(NUM_CATEGORIES)]) == num_categories_win
 
   model.solve()
 
-  total_cost = 0  #used for testing purposes to make sure our total cost is less than my_money_remaining
-  for name in range(player_dict.keys()):
-    if player_status[name].varValue == 1:
-      players_chosen.append(name)
-      total_cost += player_dict[name].cost
-
-    #Double check total_cost
-  if total_cost > my_money_remaining:
-    print("Cost broken")
-
-  if len(players_chosen) == 0:
-    players_chosen = ILPsolve(num_categories_win - 1)
-  
-  print(pulp.value(model.objective))
   print(pulp.LpStatus[model.status])
-  return players_chosen
+  if pulp.LpStatus[model.status] == "Optimal":
+    total_cost = 0  #used for testing purposes to make sure our total cost is less than my_money_remaining
+    for name in player_dict.keys():
+      if player_status[name].varValue == 1:
+        players_chosen.append(name)
+        print("Names:" + str(name))
+        total_cost += player_dict[name].cost
+    for i in range(NUM_CATEGORIES):
+      print(category_val[i].varValue)
+    print('Num_categories: ' + str(num_categories_win))
+    print("total_cost" + str(total_cost))
+    return players_chosen
+  else:
+    print('oh no')
+    return ILPsolve(num_categories_win - 1)
+    
 
 
 
@@ -341,16 +338,18 @@ if __name__ == "__main__":
   #solve()
   player_dict['Goran Dragic'].update_cost(total_threes, total_reb, total_ast, total_stl, total_blk, total_pts, total_money_remaining)
   #update_costs() #first round of costs
-  print(player_dict['Goran Dragic'].cost)
+  print(player_dict['Goran Dragic'].FTM)
+  print(player_dict['Goran Dragic'].FTA)
   #choose_player(True, 'Goran Dragic', 99)   #continuously choose_player, recompute_totals, update_costs(), solve
   #recompute_totals()
   #update_costs()
-  #ILPsolve()
-  print(my_money_remaining)
-  print(avg_blk)
-  print(my_threes)
+  #print(my_spots_remaining)
+  #print(avg_blk)
+  #print(my_threes)
+  #print(avg_ft)
+  print(avg_ast)
   print(avg_ft)
-  print(avg_fg)
+  ILPsolve(10)
   #choose_player(True, )
 
 
