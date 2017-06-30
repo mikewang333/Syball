@@ -209,8 +209,6 @@ def ILPsolve(num_categories_win):
   category_list = ["Threes", "REB", "AST", "STL", "BLK", "PTS"]
   var_list1 = [my_threes, my_reb, my_ast, my_stl, my_blk, my_pts]
   var_list2 = [avg_threes, avg_reb, avg_ast, avg_stl, avg_blk, avg_pts]
-  fga_fake = my_fga
-  fta_fake = my_fta
 
   #Variables
   player_status = pulp.LpVariable.dicts("player_status", (name for name in player_dict.keys()), cat='Binary')    #0 if player is taken, 1 if player is not taken
@@ -226,14 +224,10 @@ def ILPsolve(num_categories_win):
     model += category_val[i] == (pulp.lpSum(player_status[name] * getattr(player_dict[name], category_list[i]) for name in player_dict.keys()) + var_list1[i]) / var_list2[i]
 
   #keep track of category_val for fg%
-  if not fga_fake:  #avoid divide by zero error
-    fga_fake = 0.01
-  model += category_val[6] == (pulp.lpSum([player_status[name] * player_dict[name].FGM / player_dict[name].FGA for name in player_dict.keys()]) + (my_fgm / fga_fake)) / avg_fg
+  model += category_val[6] == ((my_fgm + pulp.lpSum([player_status[name] * player_dict[name].FGM for name in player_dict.keys()])) / (my_fga + pulp.lpSum([player_status[name] * player_dict[name].FGA for name in player_dict.keys()]))) / avg_fg
 
   #keep track of category_val for ft%
-  if not fta_fake:  #avoid divide by zero error
-    fta_fake = 0.01
-  model += category_val[7] == ((pulp.lpSum([player_status[name] * player_dict[name].FTM for name in player_dict.keys()]) / pulp.lpSum([player_status[name] * player_dict[name].FTA for name in player_dict.keys()])) + (my_ftm / fta_fake)) / avg_ft
+  model += category_val[7] == ((my_ftm + pulp.lpSum([player_status[name] * player_dict[name].FTM for name in player_dict.keys()])) / (my_fta + pulp.lpSum([player_status[name] * player_dict[name].FTA for name in player_dict.keys()]))) / avg_ft
 
   #keep track of category_val for to
   model += category_val[8] == 2 - ((pulp.lpSum([player_status[name] * player_dict[name].TO for name in player_dict.keys()]) + my_to) / avg_to)
