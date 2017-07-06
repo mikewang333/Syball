@@ -214,6 +214,8 @@ def ILPsolve(num_categories_win):
   player_status = pulp.LpVariable.dicts("player_status", (name for name in player_dict.keys()), cat='Binary')    #0 if player is taken, 1 if player is not taken
   category_status = pulp.LpVariable.dicts("category_status", (i for i in range(NUM_CATEGORIES)), cat = 'Binary') #0 if category in not taken, 1 if category is taken
   category_val = pulp.LpVariable.dicts("category_val", (i for i in range(NUM_CATEGORIES)), cat = 'Continuous') #value of category
+  y = pulp.LpVariable.dicts("y", (name for name in player_dict.keys()), cat='Continuous')
+  #t = pulp.LpVariable.dicts("t", (name for name in player_dict.keys()), cat='Continuous')
   
   #Objective
   model += pulp.lpSum([category_val[i] for i in range(NUM_CATEGORIES)])   #maximize team
@@ -224,10 +226,25 @@ def ILPsolve(num_categories_win):
     model += category_val[i] == (pulp.lpSum(player_status[name] * getattr(player_dict[name], category_list[i]) for name in player_dict.keys()) + var_list1[i]) / var_list2[i]
 
   #keep track of category_val for fg%
-  model += category_val[6] == ((my_fgm + pulp.lpSum([player_status[name] * player_dict[name].FGM for name in player_dict.keys()])) / (my_fga + pulp.lpSum([player_status[name] * player_dict[name].FGA for name in player_dict.keys()]))) / avg_fg
+  """for name in player_dict.keys():
+    model += y[name] == int(player_status[name] / (player_dict[name].FGA * player_status[name] + my_fga))
+  model += category_val[6] == pulp.lpSum(player_dict[name].FGM * y[name] for name in player_dict.keys())
+  model += pulp.lpSum(player_dict[name].FGA * y[name] for name in player_dict.keys()) == 1"""
+  #y = pulp.lpDot(player_status, 1 / (pulp.lpSum([player_status[name] * player_dict[name].FGA for name in player_dict.keys()]) + my_fga))
+  #t = 1 / (pulp.lpSum([player_status[name] * player_dict[name].FGA for name in player_dict.keys()]) + my_fga)
+  #model += category_val[6] == pulp.lpSum([y * player_status[name] for name in player_dict.keys()]) + (my_fgm * t)
+  #model += pulp.lpSum([y * my_fgm]) + my_fga*t == 1
+  
+  #HELP ME ON WORKING MODEL 
+  model += category_val[6] == 0.8
+  model += category_val[7] == 0.8
+
+
+  #model += category_val[6] == pulp.lpSum([player_status[name] / player_status[name] for name in player_dict.keys()])
+  #model += category_val[6] == ((my_fgm + pulp.lpSum([player_status[name] * player_dict[name].FGM for name in player_dict.keys()])) / (my_fga + pulp.lpSum([player_status[name] * player_dict[name].FGA for name in player_dict.keys()]))) / avg_fg
 
   #keep track of category_val for ft%
-  model += category_val[7] == ((my_ftm + pulp.lpSum([player_status[name] * player_dict[name].FTM for name in player_dict.keys()])) / (my_fta + pulp.lpSum([player_status[name] * player_dict[name].FTA for name in player_dict.keys()]))) / avg_ft
+  #model += category_val[7] * avg_ft * (my_fta + pulp.lpSum([player_status[name] * player_dict[name].FTA for name in player_dict.keys()])) == my_ftm + pulp.lpSum([player_status[name] * player_dict[name].FTM for name in player_dict.keys()])
 
   #keep track of category_val for to
   model += category_val[8] == 2 - ((pulp.lpSum([player_status[name] * player_dict[name].TO for name in player_dict.keys()]) + my_to) / avg_to)
