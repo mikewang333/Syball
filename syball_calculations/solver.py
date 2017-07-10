@@ -201,6 +201,9 @@ def update_costs():
 
 
 def ILPsolve(num_categories_win):
+  if num_categories_win <=4:
+    print('LOL you lost')
+    return
   players_chosen= []
   #https://www.coin-or.org/PuLP/pulp.html
   model = pulp.LpProblem("PickTeam maximizing problem", pulp.LpMaximize)
@@ -214,7 +217,7 @@ def ILPsolve(num_categories_win):
   player_status = pulp.LpVariable.dicts("player_status", (name for name in player_dict.keys()), cat='Binary')    #0 if player is taken, 1 if player is not taken
   category_status = pulp.LpVariable.dicts("category_status", (i for i in range(NUM_CATEGORIES)), cat = 'Binary') #0 if category in not taken, 1 if category is taken
   category_val = pulp.LpVariable.dicts("category_val", (i for i in range(NUM_CATEGORIES)), cat = 'Continuous') #value of category
-  y = pulp.LpVariable.dicts("y", (name for name in player_dict.keys()), cat='Continuous')
+  y = pulp.LpVariable("y", cat='Continuous')
   #t = pulp.LpVariable.dicts("t", (name for name in player_dict.keys()), cat='Continuous')
   
   #Objective
@@ -226,6 +229,13 @@ def ILPsolve(num_categories_win):
     model += category_val[i] == (pulp.lpSum(player_status[name] * getattr(player_dict[name], category_list[i]) for name in player_dict.keys()) + var_list1[i]) / var_list2[i]
 
   #keep track of category_val for fg%
+  model += pulp.LpFractionConstraint(numerator = (my_fgm + pulp.lpSum(player_status[name] * player_dict[name].FGM for name in player_dict.keys())), 
+    denominator = (my_fga + pulp.lpSum(player_status[name] * player_dict[name].FGA for name in player_dict.keys())), sense = LpConstraintGE, RHS = 0.5)
+  
+  model += category_val[7] == pulp.LpFractionConstraint(numerator = 1, 
+    denominator = 3, sense = LpConstraintGE, RHS = 0.1)
+
+  #model += category_val[6] == my_fgm + pulp.lpSum(player_dict[name].FGM * y for name in player_dict.keys())
   """for name in player_dict.keys():
     model += y[name] == int(player_status[name] / (player_dict[name].FGA * player_status[name] + my_fga))
   model += category_val[6] == pulp.lpSum(player_dict[name].FGM * y[name] for name in player_dict.keys())
@@ -236,8 +246,8 @@ def ILPsolve(num_categories_win):
   #model += pulp.lpSum([y * my_fgm]) + my_fga*t == 1
   
   #HELP ME ON WORKING MODEL 
-  model += category_val[6] == 0.8
-  model += category_val[7] == 0.8
+  #model += category_val[6] == 0.8
+  #model += category_val[7] == 0.8
 
 
   #model += category_val[6] == pulp.lpSum([player_status[name] / player_status[name] for name in player_dict.keys()])
@@ -252,8 +262,6 @@ def ILPsolve(num_categories_win):
   #make sure that for chosen categories team is at least 5% better than avg
   for i in range(NUM_CATEGORIES):
     model += category_val[i] >= 1.3 * category_status[i]  #make sure that for chosen categories, team is at least 5% better than avg
-    """if category_val[i] >= 1.1: make sure that for chosne categories, team is capped at 10 better than avg (any better and it doesn't matter)
-       category_val[i] = 1.1""" 
   #make sure don't overspend on players
   model += pulp.lpSum([player_status[name] * player_dict[name].cost for name in player_dict.keys()]) <= my_money_remaining
   #make sure fill up all spots left on team
@@ -262,8 +270,10 @@ def ILPsolve(num_categories_win):
   model += pulp.lpSum([category_status[i] for i in range(NUM_CATEGORIES)]) == num_categories_win
 
   model.solve()
+  #print(findLHSValue())
 
   print(pulp.LpStatus[model.status])
+  print(y.varValue)
   if pulp.LpStatus[model.status] == "Optimal":
     total_cost = 0  #used for testing purposes to make sure our total cost is less than my_money_remaining
     for name in player_dict.keys():
@@ -357,9 +367,8 @@ if __name__ == "__main__":
   #print(my_spots_remaining)
   #print(avg_blk)
   #print(my_threes)
-  #print(avg_ft)
   print(avg_ast)
-  print(avg_ft)
+  print(avg_fg)
   ILPsolve(10)
   #choose_player(True, )
 
