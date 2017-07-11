@@ -2,19 +2,24 @@
 
 class Player:
 
-	def __init__(self, GP, FG, FT, Threes, REB, AST, STL, BLK, TO, PTS):
+	def __init__(self, GP, FG, FT, Threes, REB, AST, STL, BLK, TO, PTS, FGM, FGA, FTM, FTA, cost):
 		self.GP = GP
 		self.FG = FG
-		self.FT = FT
-		self.Threes = Threes
-		self.REB = REB
-		self.AST = AST
-		self.STL = STL
-		self.BLK = BLK
-		self.TO = TO
-		self.PTS = PTS
-		self.cost = 0
+		self.FT = FT 
+		self.Threes = Threes * GP
+		self.REB = REB * GP
+		self.AST = AST * GP
+		self.STL = STL * GP
+		self.BLK = BLK * GP
+		self.TO = TO * GP
+		self.PTS = PTS * GP
+		self.FGM = FGM * GP
+		self.FGA = FGA * GP
+		self.FTM = FTM * GP
+		self.FTA = FTA * GP
+		self.cost = cost
 
+	#needs to be implemented. Updates player cost given remaining money left and players left
 	def update_cost(self, total_threes, total_reb, total_ast, total_stl, total_blk, total_pts, money):
 		"""num_categories = 6
 		cost_threes = (self.Threes/total_threes)
