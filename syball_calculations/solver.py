@@ -200,10 +200,19 @@ def update_costs():
     player.update_cost(total_threes, total_reb, total_ast, total_stl, total_blk, total_pts, total_money_remaining)
 
 
-def ILPsolve(num_categories_win):
-  if num_categories_win <=4:
+def ILPsolve(num_categories_win = 9, x_percent = 1.3):
+  #both_fg_ft = ILPsolve_helper(num_categories_win, x_percent, 1, 1)
+  #fg = ILPsolve_helper(num_categories_win, x_percent, 1, 0)
+  #ft = ILPsolve_helper(num_categories_win, x_percent, 0, 1)
+  no_fg_ft = ILPsolve_helper(num_categories_win, x_percent, 0, 0)
+
+def ILPsolve_helper(num_categories_win, x_percent, fg_switch, ft_switch):
+  num_categories = NUM_CATEGORIES - 2
+
+  if num_categories_win + fg_switch + ft_switch < 5:
     print('LOL you lost')
-    return
+    return None#needs to be implemented
+
   players_chosen= []
   #https://www.coin-or.org/PuLP/pulp.html
   model = pulp.LpProblem("PickTeam maximizing problem", pulp.LpMaximize)
@@ -215,80 +224,80 @@ def ILPsolve(num_categories_win):
 
   #Variables
   player_status = pulp.LpVariable.dicts("player_status", (name for name in player_dict.keys()), cat='Binary')    #0 if player is taken, 1 if player is not taken
-  category_status = pulp.LpVariable.dicts("category_status", (i for i in range(NUM_CATEGORIES)), cat = 'Binary') #0 if category in not taken, 1 if category is taken
-  category_val = pulp.LpVariable.dicts("category_val", (i for i in range(NUM_CATEGORIES)), cat = 'Continuous') #value of category
-  y = pulp.LpVariable("y", cat='Continuous')
-  #t = pulp.LpVariable.dicts("t", (name for name in player_dict.keys()), cat='Continuous')
+  category_status = pulp.LpVariable.dicts("category_status", (i for i in range(num_categories)), cat = 'Binary') #0 if category in not taken, 1 if category is taken
+  category_val = pulp.LpVariable.dicts("category_val", (i for i in range(num_categories)), cat = 'Continuous') #value of category
+
   
   #Objective
-  model += pulp.lpSum([category_val[i] for i in range(NUM_CATEGORIES)])   #maximize team
+  model += pulp.lpSum([category_val[i] for i in range(num_categories)])   #maximize team
 
   #Constraints
   #keep track of category_val for threes, reb, ast, stl, blk, pts
   for i in range(len(category_list)):
     model += category_val[i] == (pulp.lpSum(player_status[name] * getattr(player_dict[name], category_list[i]) for name in player_dict.keys()) + var_list1[i]) / var_list2[i]
 
-  #keep track of category_val for fg%
-  model += pulp.LpFractionConstraint(numerator = (my_fgm + pulp.lpSum(player_status[name] * player_dict[name].FGM for name in player_dict.keys())), 
-    denominator = (my_fga + pulp.lpSum(player_status[name] * player_dict[name].FGA for name in player_dict.keys())), sense = LpConstraintGE, RHS = 0.5)
-  
-  model += category_val[7] == pulp.LpFractionConstraint(numerator = 1, 
-    denominator = 3, sense = LpConstraintGE, RHS = 0.1)
-
-  #model += category_val[6] == my_fgm + pulp.lpSum(player_dict[name].FGM * y for name in player_dict.keys())
-  """for name in player_dict.keys():
-    model += y[name] == int(player_status[name] / (player_dict[name].FGA * player_status[name] + my_fga))
-  model += category_val[6] == pulp.lpSum(player_dict[name].FGM * y[name] for name in player_dict.keys())
-  model += pulp.lpSum(player_dict[name].FGA * y[name] for name in player_dict.keys()) == 1"""
-  #y = pulp.lpDot(player_status, 1 / (pulp.lpSum([player_status[name] * player_dict[name].FGA for name in player_dict.keys()]) + my_fga))
-  #t = 1 / (pulp.lpSum([player_status[name] * player_dict[name].FGA for name in player_dict.keys()]) + my_fga)
-  #model += category_val[6] == pulp.lpSum([y * player_status[name] for name in player_dict.keys()]) + (my_fgm * t)
-  #model += pulp.lpSum([y * my_fgm]) + my_fga*t == 1
-  
-  #HELP ME ON WORKING MODEL 
-  #model += category_val[6] == 0.8
-  #model += category_val[7] == 0.8
-
-
-  #model += category_val[6] == pulp.lpSum([player_status[name] / player_status[name] for name in player_dict.keys()])
-  #model += category_val[6] == ((my_fgm + pulp.lpSum([player_status[name] * player_dict[name].FGM for name in player_dict.keys()])) / (my_fga + pulp.lpSum([player_status[name] * player_dict[name].FGA for name in player_dict.keys()]))) / avg_fg
-
-  #keep track of category_val for ft%
-  #model += category_val[7] * avg_ft * (my_fta + pulp.lpSum([player_status[name] * player_dict[name].FTA for name in player_dict.keys()])) == my_ftm + pulp.lpSum([player_status[name] * player_dict[name].FTM for name in player_dict.keys()])
-
   #keep track of category_val for to
-  model += category_val[8] == 2 - ((pulp.lpSum([player_status[name] * player_dict[name].TO for name in player_dict.keys()]) + my_to) / avg_to)
+  model += category_val[6] == 2 - ((pulp.lpSum([player_status[name] * player_dict[name].TO for name in player_dict.keys()]) + my_to) / avg_to)
 
-  #make sure that for chosen categories team is at least 5% better than avg
-  for i in range(NUM_CATEGORIES):
-    model += category_val[i] >= 1.3 * category_status[i]  #make sure that for chosen categories, team is at least 5% better than avg
+  #keep track of category_val for fg%
+  RHS_fg = avg_fg * (1 + (0.5 * (x_percent - 1)))
+  RHS_ft = avg_ft * (1 + (0.5 * (x_percent - 1)))  
+  if fg_switch:
+    model += pulp.LpFractionConstraint(numerator = (my_fgm + pulp.lpSum(player_status[name] * player_dict[name].FGM for name in player_dict.keys())), 
+      denominator = (my_fga + pulp.lpSum(player_status[name] * player_dict[name].FGA for name in player_dict.keys())), sense = LpConstraintGE, RHS = RHS_fg)
+  #keep track of category_val for ft%
+  if ft_switch:
+    model += pulp.LpFractionConstraint(numerator = (my_ftm + pulp.lpSum(player_status[name] * player_dict[name].FTM for name in player_dict.keys())), 
+      denominator = (my_fta + pulp.lpSum(player_status[name] * player_dict[name].FTA for name in player_dict.keys())), sense = LpConstraintGE, RHS = RHS_ft)
+  
+
+  #make sure that for chosen categories team is at least x% better than avg
+  for i in range(num_categories):
+    model += category_val[i] >= x_percent * category_status[i]  #make sure that for chosen categories, team is at least 5% better than avg
   #make sure don't overspend on players
   model += pulp.lpSum([player_status[name] * player_dict[name].cost for name in player_dict.keys()]) <= my_money_remaining
   #make sure fill up all spots left on team
   model += pulp.lpSum([player_status[name] for name in player_dict.keys()]) == my_spots_remaining
   #only try to win as many categories as set to
-  model += pulp.lpSum([category_status[i] for i in range(NUM_CATEGORIES)]) == num_categories_win
+  model += pulp.lpSum([category_status[i] for i in range(num_categories)]) == num_categories_win
 
   model.solve()
-  #print(findLHSValue())
-
-  print(pulp.LpStatus[model.status])
-  print(y.varValue)
+  print(LpStatus[model.status])
+  #print(findLHSValue(model))
   if pulp.LpStatus[model.status] == "Optimal":
     total_cost = 0  #used for testing purposes to make sure our total cost is less than my_money_remaining
+    fgm = 0
+    fga = 0
+    ftm = 0
+    fta = 0
     for name in player_dict.keys():
       if player_status[name].varValue == 1:
         players_chosen.append(name)
         print("Names:" + str(name))
+        fgm += player_dict[name].FGM
+        fga += player_dict[name].FGA
+        ftm += player_dict[name].FTM
+        fta += player_dict[name].FTA
         total_cost += player_dict[name].cost
-    for i in range(NUM_CATEGORIES):
+    for i in range(num_categories):
       print(category_val[i].varValue)
-    print('Num_categories: ' + str(num_categories_win))
+    fg_obtained = ((my_fgm + fgm) / (my_fga + fga)) / avg_fg
+    ft_obtained = ((my_ftm + ftm) / (my_fta + fta)) / avg_ft
+    print("fg%: " + str(fg_obtained))
+    print("ft%: " + str(ft_obtained))
+
+
+    print('Num_categories: ' + str(num_categories_win + fg_switch + ft_switch))
+    print('x_percent: ' + str(x_percent))
     print("total_cost" + str(total_cost))
+    print("sum:" + str(pulp.lpSum(category_val[i].varValue for i in range(num_categories)) + fg_obtained + ft_obtained))
     return players_chosen
   else:
     print('oh no')
-    return ILPsolve(num_categories_win - 1)
+    if x_percent <= 1.1:
+      return ILPsolve_helper(num_categories_win - 1, 1.3, fg_switch, ft_switch)
+    else:
+      return ILPsolve_helper(num_categories_win, x_percent - 0.1, fg_switch, ft_switch)
     
 
 
@@ -338,7 +347,7 @@ def read_input(filename):
     for i in range(SPOTS_ALL_TEAMS):
       stats = ast.literal_eval(f.readline())
       name = stats[0]
-      print(name)
+      #print(name)
       new_player = Player(float(stats[1]), float(stats[2]), float(stats[3]), float(stats[4]), float(stats[5]), 
         float(stats[6]), float(stats[7]), float(stats[8]), float(stats[9]), float(stats[10]), float(stats[11]), 
         float(stats[12]), float(stats[13]), float(stats[14]), float(stats[15]))
@@ -367,9 +376,9 @@ if __name__ == "__main__":
   #print(my_spots_remaining)
   #print(avg_blk)
   #print(my_threes)
-  print(avg_ast)
+  print(avg_ft)
   print(avg_fg)
-  ILPsolve(10)
+  ILPsolve()
   #choose_player(True, )
 
 
