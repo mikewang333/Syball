@@ -2,11 +2,11 @@
 
 class Player:
 
-	def __init__(self, GP, FG, FT, Threes, REB, AST, STL, BLK, TO, PTS, FGM, FGA, FTM, FTA, cost):
+	def __init__(self, GP, FG, FT, THREES, REB, AST, STL, BLK, TO, PTS, FGM, FGA, FTM, FTA, cost):
 		self.GP = GP
 		self.FG = FG
 		self.FT = FT 
-		self.Threes = Threes * GP
+		self.THREES = THREES * GP
 		self.REB = REB * GP
 		self.AST = AST * GP
 		self.STL = STL * GP

@@ -30,7 +30,7 @@ class Game:
     # gives total counts for all stats in player_dict
     def recompute_totals(self):
         for player in self.player_dict.values():
-            for category in CATEGORIES:
+            for category in self.CATEGORIES:
                 setattr(self, '{}_{}'.format("total", category), getattr(self, '{}_{}'.format("total", category)) + getattr(player, category.upper()))
     # compute team averages
     def compute_team_averages(self):
@@ -53,7 +53,7 @@ class Game:
         #both_fg_ft = ILPsolve_helper(num_categories_win, x_percent, 1, 1)
         #fg = ILPsolve_helper(num_categories_win, x_percent, 1, 0)
         #ft = ILPsolve_helper(num_categories_win, x_percent, 0, 1)
-        no_fg_ft = ILPsolve_helper(num_categories_win, x_percent, 0, 0)
+        no_fg_ft = self.ILPsolve_helper(num_categories_win, x_percent, 0, 0)
 
     def ILPsolve_helper(self, num_categories_win, x_percent, fg_switch, ft_switch):
         num_categories = self.NUM_CATEGORIES - 2
@@ -67,9 +67,9 @@ class Game:
         model = pulp.LpProblem("PickTeam maximizing problem", pulp.LpMaximize)
 
         # variables to help code
-        category_list = ["Threes", "REB", "AST", "STL", "BLK", "PTS"]
-        var_list1 = [my_threes, my_reb, my_ast, my_stl, my_blk, my_pts]
-        var_list2 = [avg_threes, avg_reb, avg_ast, avg_stl, avg_blk, avg_pts]
+        category_list = ["THREES", "REB", "AST", "STL", "BLK", "PTS"]
+        var_list1 = [self.my_threes, self.my_reb, self.my_ast, self.my_stl, self.my_blk, self.my_pts]
+        var_list2 = [self.avg_threes, self.avg_reb, self.avg_ast, self.avg_stl, self.avg_blk, self.avg_pts]
 
         # Variables
         player_status = pulp.LpVariable.dicts("player_status", (name for name in self.player_dict.keys()), cat='Binary')    # 0 if player is taken, 1 if player is not taken
@@ -83,21 +83,21 @@ class Game:
         # Constraints
         # keep track of category_val for threes, reb, ast, stl, blk, pts
         for i in range(len(category_list)):
-            model += category_val[i] == (pulp.lpSum(player_status[name] * getattr(self.player_dict[name], category_list[i]) for name in player_dict.keys()) + var_list1[i]) / var_list2[i]
+            model += category_val[i] == (pulp.lpSum(player_status[name] * getattr(self.player_dict[name], category_list[i]) for name in self.player_dict.keys()) + var_list1[i]) / var_list2[i]
 
         # keep track of category_val for to
-        model += category_val[6] == 2 - ((pulp.lpSum([player_status[name] * self.player_dict[name].TO for name in self.player_dict.keys()]) + my_to) / avg_to)
+        model += category_val[6] == 2 - ((pulp.lpSum([player_status[name] * self.player_dict[name].TO for name in self.player_dict.keys()]) + self.my_to) / self.avg_to)
 
         # keep track of category_val for fg%
-        RHS_fg = avg_fg * (1 + (0.5 * (x_percent - 1)))
-        RHS_ft = avg_ft * (1 + (0.5 * (x_percent - 1)))  
+        RHS_fg = self.avg_fg * (1 + (0.5 * (x_percent - 1)))
+        RHS_ft = self.avg_ft * (1 + (0.5 * (x_percent - 1)))  
         if fg_switch:
-            model += pulp.LpFractionConstraint(numerator = (my_fgm + pulp.lpSum(player_status[name] * self.player_dict[name].FGM for name in self.player_dict.keys())), 
-                denominator = (my_fga + pulp.lpSum(player_status[name] * self.player_dict[name].FGA for name in self.player_dict.keys())), sense = LpConstraintGE, RHS = RHS_fg)
+            model += pulp.LpFractionConstraint(numerator = (self.my_fgm + pulp.lpSum(player_status[name] * self.player_dict[name].FGM for name in self.player_dict.keys())), 
+                denominator = (self.my_fga + pulp.lpSum(player_status[name] * self.player_dict[name].FGA for name in self.player_dict.keys())), sense = LpConstraintGE, RHS = RHS_fg)
         # keep track of category_val for ft%
         if ft_switch:
-            model += pulp.LpFractionConstraint(numerator = (my_ftm + pulp.lpSum(player_status[name] * self.player_dict[name].FTM for name in self.player_dict.keys())), 
-                denominator = (my_fta + pulp.lpSum(player_status[name] * self.player_dict[name].FTA for name in self.player_dict.keys())), sense = LpConstraintGE, RHS = RHS_ft)
+            model += pulp.LpFractionConstraint(numerator = (self.my_ftm + pulp.lpSum(player_status[name] * self.player_dict[name].FTM for name in self.player_dict.keys())), 
+                denominator = (self.my_fta + pulp.lpSum(player_status[name] * self.player_dict[name].FTA for name in self.player_dict.keys())), sense = LpConstraintGE, RHS = RHS_ft)
         
 
         # make sure that for chosen categories team is at least x% better than avg
@@ -108,7 +108,7 @@ class Game:
         # make sure fill up all spots left on team
         model += pulp.lpSum([player_status[name] for name in self.player_dict.keys()]) == self.my_spots_remaining
         # only try to win as many categories as set to
-        model += pulp.lpSum([category_status[i] for i in range(num_categories)]) == self.num_categories_win
+        model += pulp.lpSum([category_status[i] for i in range(num_categories)]) == num_categories_win
 
         model.solve()
         print(LpStatus[model.status])
@@ -130,8 +130,8 @@ class Game:
                     total_cost += self.player_dict[name].cost
             for i in range(num_categories):
                 print(category_val[i].varValue)
-            fg_obtained = ((self.my_fgm + fgm) / (self.my_fga + fga)) / avg_fg
-            ft_obtained = ((self.my_ftm + ftm) / (self.my_fta + fta)) / avg_ft
+            fg_obtained = ((self.my_fgm + fgm) / (self.my_fga + fga)) / self.avg_fg
+            ft_obtained = ((self.my_ftm + ftm) / (self.my_fta + fta)) / self.avg_ft
             print("fg%: " + str(fg_obtained))
             print("ft%: " + str(ft_obtained))
 
@@ -144,18 +144,15 @@ class Game:
         else:
             print('oh no')
             if x_percent <= 1.1:
-                return ILPsolve_helper(num_categories_win - 1, 1.3, fg_switch, ft_switch)
+                return self.ILPsolve_helper(num_categories_win - 1, 1.3, fg_switch, ft_switch)
             else:
-                return ILPsolve_helper(num_categories_win, x_percent - 0.1, fg_switch, ft_switch)
+                return self.ILPsolve_helper(num_categories_win, x_percent - 0.1, fg_switch, ft_switch)
           
-
-
-
-    def choose_player(mine, name, cost):
+    def choose_player(self, mine, name, cost):
         if mine == True: # if the player is on my team
             self.my_spots_remaining -= 1
             self.my_money_remaining -= cost
-            self.my_threes += self.player_dict[name].Threes
+            self.my_threes += self.player_dict[name].THREES
             self.my_reb += self.player_dict[name].REB
             self.my_ast += self.player_dict[name].AST
             self.my_stl += self.player_dict[name].STL
@@ -172,45 +169,49 @@ class Game:
 
 
     # reads input and creates all_players
-    def read_input(filename):
-        global player_dict
+    def read_input(self, filename):
+        #global player_dict
         with open(filename) as f:
-            for i in range(SPOTS_ALL_TEAMS):
+            for i in range(self.SPOTS_ALL_TEAMS):
                 stats = ast.literal_eval(f.readline())
                 name = stats[0]
                 # print(name)
                 new_player = Player(float(stats[1]), float(stats[2]), float(stats[3]), float(stats[4]), float(stats[5]), 
                     float(stats[6]), float(stats[7]), float(stats[8]), float(stats[9]), float(stats[10]), float(stats[11]), 
                     float(stats[12]), float(stats[13]), float(stats[14]), float(stats[15]))
-                player_dict[name] = new_player
+                self.player_dict[name] = new_player
           
 
 
 
-    if __name__ == "__main__":
-        parser = argparse.ArgumentParser(description="Optimizing Team")
-        parser.add_argument("input_file", type=str)
-        args = parser.parse_args()
-        initialize()
-        read_input(args.input_file) # read inputs
-        recompute_totals()
-        compute_team_averages()
-        update_costs()
-        # solve()
-        player_dict['Goran Dragic'].update_cost(total_threes, total_reb, total_ast, total_stl, total_blk, total_pts, total_money_remaining)
-        # update_costs() # first round of costs
-        print(player_dict['Goran Dragic'].FTM)
-        print(player_dict['Goran Dragic'].FTA)
-        # choose_player(True, 'Goran Dragic', 99)   # continuously choose_player, recompute_totals, update_costs(), solve
-        # recompute_totals()
-        # update_costs()
-        # print(my_spots_remaining)
-        # print(avg_blk)
-        # print(my_threes)
-        print(avg_ft)
-        print(avg_fg)
-        ILPsolve()
-        # choose_player(True, )
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Optimizing Team")
+    parser.add_argument("input_file", type=str)
+    args = parser.parse_args()
+    game = Game()
+    print(game.SPOTS_ALL_TEAMS)
+    game.read_input(args.input_file) # read inputs
+    game.recompute_totals()
+    game.compute_team_averages()
+    game.update_costs()
+    # solve()
+    game.player_dict['Goran Dragic'].update_cost(game.total_threes, game.total_reb, game.total_ast, game.total_stl, game.total_blk, game.total_pts, game.total_money_remaining)
+    # update_costs() # first round of costs
+    print(game.player_dict['Goran Dragic'].FTM)
+    print(game.player_dict['Goran Dragic'].FTA)
+    # choose_player(True, 'Goran Dragic', 99)   # continuously choose_player, recompute_totals, update_costs(), solve
+    # recompute_totals()
+    # update_costs()
+    # print(my_spots_remaining)
+    # print(avg_blk)
+    # print(my_threes)
+    print(game.avg_ft)
+    print(game.avg_fg)
+    game.ILPsolve()
+    #game.choose_player(True, 'Goran Dragic', 1)
+    #print(game.my_threes)
+    #print(game.my_money_remaining)
+    #print(game.my_spots_remaining)
 
 
 
