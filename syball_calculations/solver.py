@@ -49,13 +49,13 @@ class Game:
             player.update_cost(self.total_threes, self.total_reb, self.total_ast, self.total_stl, self.total_blk, self.total_pts, self.total_money_remaining)
 
 
-    def ILPsolve(self, num_categories_win = 9, x_percent = 1.3):
-        #both_fg_ft = ILPsolve_helper(num_categories_win, x_percent, 1, 1)
-        #fg = ILPsolve_helper(num_categories_win, x_percent, 1, 0)
-        #ft = ILPsolve_helper(num_categories_win, x_percent, 0, 1)
-        no_fg_ft = self.ILPsolve_helper(num_categories_win, x_percent, 0, 0)
+    def ILPsolve(self, num_categories_win = 9, start_percent = 1.2, end_percent = 1.1, percent_decrease = 0.05):
+        both_fg_ft = self.ILPsolve_helper(num_categories_win, start_percent, start_percent, end_percent, percent_decrease, 1, 1)
+        #fg = self.ILPsolve_helper(num_categories_win, start_percent, start_percent, end_percent, percent_decrease, 1, 0)
+        #ft = self.ILPsolve_helper(num_categories_win, start_percent, start_percent, end_percent, percent_decrease, 0, 1)
+        #no_fg_ft = self.ILPsolve_helper(num_categories_win, start_percent, start_percent, end_percent, percent_decrease, 0, 0)
 
-    def ILPsolve_helper(self, num_categories_win, x_percent, fg_switch, ft_switch):
+    def ILPsolve_helper(self, num_categories_win, start_percent, curr_percent, end_percent, percent_decrease, fg_switch, ft_switch):
         num_categories = self.NUM_CATEGORIES - 2
 
         if num_categories_win + fg_switch + ft_switch < 5:
@@ -89,8 +89,8 @@ class Game:
         model += category_val[6] == 2 - ((pulp.lpSum([player_status[name] * self.player_dict[name].TO for name in self.player_dict.keys()]) + self.my_to) / self.avg_to)
 
         # keep track of category_val for fg%
-        RHS_fg = self.avg_fg * (1 + (0.5 * (x_percent - 1)))
-        RHS_ft = self.avg_ft * (1 + (0.5 * (x_percent - 1)))  
+        RHS_fg = self.avg_fg * (1 + (0.5 * (curr_percent - 1)))
+        RHS_ft = self.avg_ft * (1 + (0.5 * (curr_percent - 1)))  
         if fg_switch:
             model += pulp.LpFractionConstraint(numerator = (self.my_fgm + pulp.lpSum(player_status[name] * self.player_dict[name].FGM for name in self.player_dict.keys())), 
                 denominator = (self.my_fga + pulp.lpSum(player_status[name] * self.player_dict[name].FGA for name in self.player_dict.keys())), sense = LpConstraintGE, RHS = RHS_fg)
@@ -102,7 +102,7 @@ class Game:
 
         # make sure that for chosen categories team is at least x% better than avg
         for i in range(num_categories):
-            model += category_val[i] >= x_percent * category_status[i]  # make sure that for chosen categories, team is at least 5% better than avg
+            model += category_val[i] >= curr_percent * category_status[i]  # make sure that for chosen categories, team is at least 5% better than avg
         # make sure don't overspend on players
         model += pulp.lpSum([player_status[name] * self.player_dict[name].cost for name in self.player_dict.keys()]) <= self.my_money_remaining
         # make sure fill up all spots left on team
@@ -137,16 +137,16 @@ class Game:
 
 
             print('Num_categories: ' + str(num_categories_win + fg_switch + ft_switch))
-            print('x_percent: ' + str(x_percent))
+            print('curr_percent: ' + str(curr_percent))
             print("total_cost" + str(total_cost))
             print("sum:" + str(pulp.lpSum(category_val[i].varValue for i in range(num_categories)) + fg_obtained + ft_obtained))
             return players_chosen
         else:
             print('oh no')
-            if x_percent <= 1.1:
-                return self.ILPsolve_helper(num_categories_win - 1, 1.3, fg_switch, ft_switch)
+            if curr_percent <= end_percent:
+                return self.ILPsolve_helper(num_categories_win - 1, start_percent, start_percent, end_percent, percent_decrease, fg_switch, ft_switch)
             else:
-                return self.ILPsolve_helper(num_categories_win, x_percent - 0.1, fg_switch, ft_switch)
+                return self.ILPsolve_helper(num_categories_win, start_percent, curr_percent - percent_decrease, end_percent, percent_decrease, fg_switch, ft_switch)
           
     def choose_player(self, mine, name, cost):
         if mine == True: # if the player is on my team
@@ -191,24 +191,19 @@ if __name__ == "__main__":
     game = Game()
     print(game.SPOTS_ALL_TEAMS)
     game.read_input(args.input_file) # read inputs
-    game.recompute_totals()
-    game.compute_team_averages()
-    game.update_costs()
-    # solve()
+    game.recompute_totals() #compute totals of all categories
+    game.compute_team_averages() #with totals compute team averages
+    game.update_costs()  #update every player's costs
     game.player_dict['Goran Dragic'].update_cost(game.total_threes, game.total_reb, game.total_ast, game.total_stl, game.total_blk, game.total_pts, game.total_money_remaining)
-    # update_costs() # first round of costs
     print(game.player_dict['Goran Dragic'].FTM)
     print(game.player_dict['Goran Dragic'].FTA)
-    # choose_player(True, 'Goran Dragic', 99)   # continuously choose_player, recompute_totals, update_costs(), solve
-    # recompute_totals()
-    # update_costs()
-    # print(my_spots_remaining)
-    # print(avg_blk)
-    # print(my_threes)
+    #print(game.my_spots_remaining)
+    #print(game.avg_blk)
+    #print(game.my_threes)
     print(game.avg_ft)
     print(game.avg_fg)
     game.ILPsolve()
-    #game.choose_player(True, 'Goran Dragic', 1)
+    # game.choose_player(True, 'Goran Dragic', 99)   # continuously choose_player, recompute_totals, update_costs(), and ILPsolve. Repeat.
     #print(game.my_threes)
     #print(game.my_money_remaining)
     #print(game.my_spots_remaining)
